@@ -1,0 +1,21 @@
+# dependencies / installs
+node_modules/
+
+# logs and session artifacts
+*.log
+_session*
+*.zstd
+
+# test scratch
+_internals-*
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+
+# npm
+*.tgz

@@ -1,0 +1,19 @@
+# cordis.patch.yml — optional PROFILE-level bundle patch.
+#
+# Only used by the "profile bundle" install path:
+#   dsh plugin --profile web add @temoa/dsh-rules-paths
+# The reconciler appends this package to the profile's `dsh.profile.bundles`
+# (because package.json declares `dsh.bundle.patch`), and the patch below
+# mounts the plugin into the PROFILE (host) composition — which makes the
+# rules injection active for EVERY session on that profile, no preset edit
+# needed. If you prefer rules only in one agent preset, skip this path and
+# add the preset row `name: @temoa/dsh-rules-paths` to your user preset instead.
+#
+# A top-level YAML array of loader patch entries (`insert` lists, config
+# overrides, disables; `!!js` expressions allowed).
+- insert:
+    - id: rules-paths
+      name: '@temoa/dsh-rules-paths'
+      config:
+        rulesDir: "~/.dsh/rules"
+        rulesDirProject: true
