@@ -4,6 +4,7 @@ Claude Code-style `paths:` rule injection for [DeepSeek Harness (DSH)](https://g
 
 ## Features
 
+- **Preset-scoped, opt-in** — the plugin does **not** mount at the profile level. It is activated only by the agent presets that reference it; the four shipped presets (`standard` / `code` / `minimal` / `cordis`) ignore it. New sessions get rules injection only when the chosen preset carries the row.
 - **Path rules** — a rule file declares `paths:` glob patterns; a successful `read` of a matching file injects the rule body at the next step boundary.
 - **Global rules** — a rule without `paths` (or with no frontmatter at all) is injected into the first entering step of the session, independent of any file read (like `AGENTS.md`).
 - **Project rules** — optional scan of `<projectRoot>/.dsh/rules` **and** `<projectRoot>/.claude/rules` (Claude Code convention), keyed on the `.git` project root.
@@ -14,15 +15,28 @@ Claude Code-style `paths:` rule injection for [DeepSeek Harness (DSH)](https://g
 
 > Requires DSH 0.1.0-rc.x (Web profile).
 
-### From GitHub
+The plugin does **not** mount at the profile level. Installing it is two independent steps: (1) put the package somewhere DSH can resolve, (2) opt in from a user preset. `dsh plugin --profile web add` installs the package, but it does **not** mount the plugin anywhere — mounting must come from a preset row.
+
+### Step 1 — install the package into the profile's `node_modules`
+
+The package is distributed from its GitHub repository (it is not on the npm registry). Install it via the `dsh plugin add` command, which forwards to pnpm with a git spec:
 
 ```bash
 dsh plugin --profile web add git+https://github.com/Temoa/dsh-rules-paths.git
 ```
 
-pnpm pins the package by commit with a full integrity hash. Because the package declares `dsh.bundle.patch` (`cordis.patch.yml`), the reconciler appends it to the profile's `dsh.profile.bundles` automatically — the plugin mounts at the PROFILE level and rules apply to **every session on that profile**, no preset edit needed.
+Or, for a local checkout you are iterating on:
 
-To scope the rules to one agent preset instead, add this row to a user preset (a copy of `standard`):
+```bash
+# from inside the profile directory (e.g. ~/.dsh/profiles/web)
+pnpm add ./path/to/dsh-rules-paths
+```
+
+The package now lands in `node_modules/@temoa/dsh-rules-paths/` but does **not** activate — no preset references it yet, and the manifest no longer declares a bundle patch.
+
+### Step 2 — opt in from a user preset you create
+
+The shipped presets are read-only, so copy one and edit the copy. In the Web UI, open **Settings → Agent Presets** and use the copy dialog on `standard` (or any other shipped preset) to make a new preset. Then add the row to the new preset's `agent.cordis.yml`:
 
 ```yaml
 - id: rules-paths
@@ -32,13 +46,9 @@ To scope the rules to one agent preset instead, add this row to a user preset (a
     rulesDirProject: true
 ```
 
-### From a local checkout
+Reload DSH, pick the new preset for a **blank** session (DSH locks preset switching on sessions that already produced content), and the plugin takes effect. Other sessions on the shipped presets keep ignoring it.
 
-```bash
-dsh plugin --profile web add ./dsh-rules-paths
-```
-
-> **After changing plugin code, fully restart the harness** — the module is cached per process URL; preset *config* is re-read per session mount, but the plugin *file* is not re-imported. Rule files themselves never need a restart. Never edit the shipped presets (`standard`/`code`/`minimal`/`cordis`); add the preset row above to a copy instead.
+> **Restart the harness after editing the preset.** Preset *config* is re-read on every session mount, but the plugin *file* is cached per process URL; rule files themselves never need a restart.
 
 ## Uninstall
 
@@ -46,7 +56,7 @@ dsh plugin --profile web add ./dsh-rules-paths
 dsh plugin --profile web remove @temoa/dsh-rules-paths
 ```
 
-Restart dsh after removing. The hook is torn down with the plugin; rule files under `~/.dsh/rules` and the project rule directories are left untouched.
+Then open the user preset's `agent.cordis.yml` and delete the `- id: rules-paths` block. Restart DSH. Rule files under `~/.dsh/rules` and the project rule directories are left untouched.
 
 ## How it works
 
@@ -83,8 +93,7 @@ On every successful `read` (and once at session start for global rules), the plu
 
 ```
 dsh-rules-paths/
-├── package.json        # dsh.bundle.patch manifest
-├── cordis.patch.yml    # composition layer: appends the plugin to profile bundles
+├── package.json        # manifest
 ├── lib/
 │   ├── index.js        # Host half: rule loading, matching, injection
 │   └── types/index.d.ts
@@ -98,8 +107,8 @@ dsh-rules-paths/
 ## Development
 
 ```bash
-npm install   # fetches the devDependencies (peers + js-yaml + picomatch)
-npm test      # node test/index.mjs — 50 assertions
+pnpm install   # or npm install — fetches devDependencies (peers + js-yaml + picomatch)
+pnpm test      # node test/index.mjs — 50 assertions
 ```
 
 Tests cover: config validation, frontmatter parsing, budget rendering (omit/truncate/escape), message construction, dedup + `replace`, zero injection, global rules, project rules (`.dsh/rules` + `.claude/rules`), and the pre-step fold position.

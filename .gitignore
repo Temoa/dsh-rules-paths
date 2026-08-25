@@ -1,5 +1,6 @@
 # dependencies / installs
 node_modules/
+.pnpm-store/
 
 # logs and session artifacts
 *.log

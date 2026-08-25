@@ -4,6 +4,7 @@
 
 ## 功能
 
+- **按 preset 启用，opt-in**——插件**不挂到 profile 级**。只有引用它的 agent preset 才会激活；DSH 随附的四个 preset（`standard` / `code` / `minimal` / `cordis`）一律不加载。**只有会话选用的 preset 携带那一行**才会注入规则。
 - **路径规则**——规则文件用 `paths:` 声明 glob；成功 `read` 命中文件后，在下一步边界注入规则正文。
 - **全局规则**——没有 `paths`（或完全没有 frontmatter）的规则，在会话**第一个进入的 step** 即注入，不依赖任何文件读取（时机同 `AGENTS.md`）。
 - **项目级规则**——可选扫描 `<项目根>/.dsh/rules` **和** `<项目根>/.claude/rules`（Claude Code 约定），以 `.git` 标记项目根。
@@ -14,15 +15,26 @@
 
 > 需要 DSH 0.1.0-rc.x（Web profile）。
 
-### 从 GitHub
+插件不挂到 profile 级。装包分两件独立的事：(1) 把包装到 DSH 能解析的位置；(2) 在用户 preset 里主动启用。`dsh plugin --profile web add` 仍可装包，但**不会**再把插件挂到任何位置——挂载必须由 preset row 完成。
+
+### 第一步——装包
 
 ```bash
 dsh plugin --profile web add git+https://github.com/Temoa/dsh-rules-paths.git
 ```
 
-pnpm 按 commit 固定包并带完整 integrity 哈希。包声明了 `dsh.bundle.patch`（`cordis.patch.yml`），reconciler 会自动把它加入 profile 的 `dsh.profile.bundles`——插件挂到 **profile（host）级**，该 profile 上**所有会话**都启用规则注入，无需改任何 preset。
+或本地 checkout 迭代：
 
-若只想在某个 agent preset 启用，改为在用户 preset（`standard` 的副本）里加一行：
+```bash
+# 在 profile 目录下（典型是 ~/.dsh/profiles/web）
+pnpm add ./path/to/dsh-rules-paths
+```
+
+包会落到 `node_modules/@temoa/dsh-rules-paths/`，但**不会**激活——既没有 preset 引用它，manifest 也不再声明 bundle patch。
+
+### 第二步——在自己创建的 preset 里启用
+
+随附 preset 是只读的，所以先复制一份。在 Web UI 里打开 **Settings → Agent Presets**，对 `standard`（或任何其他随附 preset）使用复制对话框得到新 preset。然后在新 preset 的 `agent.cordis.yml` 末尾加这一行：
 
 ```yaml
 - id: rules-paths
@@ -32,13 +44,9 @@ pnpm 按 commit 固定包并带完整 integrity 哈希。包声明了 `dsh.bundl
     rulesDirProject: true
 ```
 
-### 本地 checkout
+重启 DSH，把新 preset 选给一个**空白**会话（DSH 锁定已产出内容的会话以防切换），插件才会生效。其他走随附 preset 的会话照旧不挂载。
 
-```bash
-dsh plugin --profile web add ./dsh-rules-paths
-```
-
-> **改插件代码后必须完整重启 harness**：模块按 URL 在进程内缓存，preset **配置**每次挂载会重读，但插件**文件**不会重新 import；规则文件本身永远不用重启。不要改随附 preset（`standard`/`code`/`minimal`/`cordis`）——复制一个再改。
+> **编辑 preset 后必须重启 harness**：preset **配置**每次挂载重读，但插件**文件**按 URL 在进程内缓存；规则文件本身永远不用重启。
 
 ## 卸载
 
@@ -46,7 +54,7 @@ dsh plugin --profile web add ./dsh-rules-paths
 dsh plugin --profile web remove @temoa/dsh-rules-paths
 ```
 
-重启 dsh 即完成卸载。挂钩随插件一起拆除；`~/.dsh/rules` 与项目规则目录下的文件原样保留。
+然后打开用户 preset 的 `agent.cordis.yml`，删掉 `- id: rules-paths` 整块。重启 DSH 即可。`~/.dsh/rules` 与项目规则目录下的文件均原样保留。
 
 ## 工作原理
 
@@ -83,8 +91,7 @@ description: Dart 编码规范（可选，仅元数据）
 
 ```
 dsh-rules-paths/
-├── package.json        # dsh.bundle.patch manifest
-├── cordis.patch.yml    # 组合层：把插件追加进 profile bundles
+├── package.json        # manifest
 ├── lib/
 │   ├── index.js        # Host 半：规则加载、匹配、注入
 │   └── types/index.d.ts
@@ -98,8 +105,8 @@ dsh-rules-paths/
 ## 开发
 
 ```bash
-npm install   # 拉取 devDependencies（peers + js-yaml + picomatch）
-npm test      # node test/index.mjs — 50 项断言
+pnpm install   # 或 npm install ——拉取 devDependencies（peers + js-yaml + picomatch）
+pnpm test      # node test/index.mjs —— 50 项断言
 ```
 
 测试覆盖：Config 校验、frontmatter 解析、预算渲染（省略/截断/转义）、消息构造、去重与 `replace`、零注入、全局规则、项目规则（`.dsh/rules` + `.claude/rules`）、pre-step 折叠位置。
