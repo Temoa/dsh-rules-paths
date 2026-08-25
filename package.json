@@ -1,7 +1,7 @@
 {
   "name": "@temoa/dsh-rules-paths",
   "description": "Claude Code-style `paths:` rule injection for DeepSeek Harness (DSH): inject rules from ~/.dsh/rules, <project>/.dsh/rules and <project>/.claude/rules into the model context.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public"
   },
@@ -22,8 +22,7 @@
   },
   "files": [
     "lib/index.js",
-    "lib/types/index.d.ts",
-    "cordis.patch.yml"
+    "lib/types/index.d.ts"
   ],
   "license": "MIT",
   "keywords": [
@@ -36,11 +35,6 @@
     "claude-code",
     "agent-instructions"
   ],
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    }
-  },
   "scripts": {
     "test": "node test/index.mjs"
   },
